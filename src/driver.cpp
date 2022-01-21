@@ -8,6 +8,9 @@
 #include <string.h>
 #include <sstream>
 
+#include <chrono>
+#include <thread>
+
 //Network related includes:
 #include <sys/socket.h>
 #include <netdb.h>
@@ -20,6 +23,8 @@ class DeviceDriver{
     private:
         int sock{0}; //Socket descriptor
         int m_processID; //Current processID
+        std::vector<std::string> m_operationList;
+
 
     public:
         std::string OpenConnection(std::string IPAddress) {
@@ -62,8 +67,6 @@ class DeviceDriver{
             std::stringstream ss(buffer); //Make sure processID is an int
             if (ss>>m_processID) {
                 std::cout<<m_processID<<"\n";
-                std::cout<<getStatus(m_processID);
-                
                 return "";
             }
             else {
@@ -75,6 +78,41 @@ class DeviceDriver{
 
         std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
         // Device Driver will perform an operation determined by the parameter operation
+            std::cout<<parameterNames[0]<<"\n";
+            std::string message;
+            std::string source,destination;
+
+            for (int i = 0;i!=parameterNames.size();++i) {
+                if (parameterNames[i] == "Source Location") source = parameterValues[i];
+                else if (parameterNames[i] == "Destination Location")  destination = parameterValues[i];
+            }
+
+            if (operation=="Transfer"){
+                message = "pick%" + source;
+                m_operationList.push_back(message);
+                message = "place%" + destination;
+            }
+            else if (operation == "Pick"){
+                message = "pick%" + source;
+            }
+            else if (operation == "Place"){
+                message = "place%" + destination;
+            }
+            m_operationList.push_back(message);
+            char buffer[1024] = {0};
+
+            for (auto& op:m_operationList){
+                send(sock,op.c_str(),op.length(),0);
+                read(sock,buffer, 1024);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                int pid;
+                std::stringstream ss(buffer);
+                ss>>pid;
+
+                std::cout<<op<<std::endl;
+                std::cout<<pid<<std::endl;
+            }
 
             return "";
         }
@@ -104,7 +142,6 @@ class DeviceDriver{
             else {
                 return "Message Error";
             }
-        
         }
 
 
@@ -116,5 +153,6 @@ int main() {
     DeviceDriver driver;
     driver.OpenConnection(ip);
     driver.Initialize();
+    driver.ExecuteOperation("Transfer", {"Destination Location", "Source Location"}, {"5", "12"});
        
 }
