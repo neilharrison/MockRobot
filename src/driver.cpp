@@ -19,7 +19,8 @@
 class DeviceDriver{
     private:
         int sock{0}; //Socket descriptor
-        int processID; //Current processID
+        int m_processID; //Current processID
+
     public:
         std::string OpenConnection(std::string IPAddress) {
         //Device Driver to establish a connection with the MockRobot onboard software
@@ -59,21 +60,53 @@ class DeviceDriver{
             read(sock,buffer, 1024); //Recieve processID into buffer
         
             std::stringstream ss(buffer); //Make sure processID is an int
-            if (ss>>processID) {
-                std::cout<<processID<<"\n";
+            if (ss>>m_processID) {
+                std::cout<<m_processID<<"\n";
+                std::cout<<getStatus(m_processID);
+                
                 return "";
             }
-            else std::cout<<"Didn't recognise process ID\n";
+            else {
+                std::cout<<"Didn't recognise process ID\n";
+                return "Didn't recognise process ID\n" ;
+            }
             
         }
 
         std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
         // Device Driver will perform an operation determined by the parameter operation
+
+            return "";
         }
 
         std::string Abort() {
-
+            return "";
         }
+
+    private:
+        std::string getStatus(int processID) {
+            char buffer[1024] = {0};
+            std::string message{"status%"};
+            message = message + std::to_string(processID);
+            send(sock,message.c_str(),message.length(),0);
+            read(sock,buffer,1024);
+            
+            std::string result(buffer);
+            if (result == "In Progress") {
+                return "In prog\n";
+            }
+            else if (result == "Finished Successfully"){
+                return "Fin\n";
+            }
+            else if (result == "Terminated With Error"){
+                return "Term\n";
+            } 
+            else {
+                return "Message Error";
+            }
+        
+        }
+
 
 };
 
