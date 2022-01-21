@@ -6,7 +6,6 @@
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 
 //Network related includes:
 #include <sys/socket.h>
@@ -14,63 +13,66 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 //Target host details:
-#define PORT 10330
+#define PORT 10320
 
-std::string OpenConnection(std::string IPAddress) {
-//Device Driver to establish a connection with the MockRobot onboard software
-    int sock{0};
-    int valread;
-    struct sockaddr_in server;
-    char buffer[1024] = {0};
- 
-    std::string message = "Hello";
-    
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        std::cout<<"Socket creation error \n";
-        return "Socket creation error \n";
-    }
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
+class DeviceDriver{
 
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    if(inet_pton(AF_INET, (char *)IPAddress.c_str(), &server.sin_addr)<=0) 
-    {
-        std::cout<<"Invalid address/ Address not supported \n";
-        return "Invalid address/ Address not supported \n";
-    }
+    int sock{0}; //Socket descriptor
+    public:
+        std::string OpenConnection(std::string IPAddress) {
+        //Device Driver to establish a connection with the MockRobot onboard software
+            struct sockaddr_in server;
+            
+            if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+            {
+                std::cout<<"Socket creation error \n";
+                return "Socket creation error \n";
+            }
+            server.sin_family = AF_INET;
+            server.sin_port = htons(PORT);
 
-    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
-    {
-        std::cout<<"Connection Failed \n";
-        return "Connection Failed \n";
-    }
+            // Convert IPv4 and IPv6 addresses from text to binary form
+            if(inet_pton(AF_INET, (const char *)IPAddress.c_str(), &server.sin_addr)<=0) 
+            {
+                std::cout<<"Invalid address/ Address not supported \n";
+                return "Invalid address/ Address not supported \n";
+            }
 
-    connect(sock, (const sockaddr *)&server, sizeof(server));
-    
-    send(sock, (char *)message.c_str(), strlen((char *)message.c_str()), 0);
-    
-    read(sock,buffer, 1024);
-    std::cout<<buffer<<"\n";
-}
+            if (connect(sock, (const sockaddr *)&server, sizeof(server)) < 0)
+            {
+                std::cout<<"Connection Failed \n";
+                return "Connection Failed \n";
+            }
+            else {
+                std::cout<<"Connection Succesful\n";
+                return "";
+            }
+        }
 
-std::string Initialize() {
-//Device Driver will put the MockRobot into an automation-ready (homed) state.
-}
+        std::string Initialize() {
+        //Device Driver will put the MockRobot into an automation-ready (homed) state.
+            char buffer[1024] = {0};
+            std::string message{"Elooo"};
+            send(sock, message.c_str(), message.length(), 0);
+            read(sock,buffer, 1024);
+            std::cout<<buffer<<"\nHere\n";
+        }
 
-std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
-// Device Driver will perform an operation determined by the parameter operation
-}
+        std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
+        // Device Driver will perform an operation determined by the parameter operation
+        }
 
-std::string Abort() {
+        std::string Abort() {
 
-}
+        }
 
-
+};
 
 
 int main() {
-    OpenConnection("127.0.0.1");
-
+    std::string ip{"127.0.0.1"};
+    DeviceDriver driver;
+    driver.OpenConnection(ip);
+    driver.Initialize();
        
 }
