@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
+#include <sstream>
 
 //Network related includes:
 #include <sys/socket.h>
@@ -16,8 +17,9 @@
 #define PORT 10320
 
 class DeviceDriver{
-
-    int sock{0}; //Socket descriptor
+    private:
+        int sock{0}; //Socket descriptor
+        int processID; //Current processID
     public:
         std::string OpenConnection(std::string IPAddress) {
         //Device Driver to establish a connection with the MockRobot onboard software
@@ -52,10 +54,17 @@ class DeviceDriver{
         std::string Initialize() {
         //Device Driver will put the MockRobot into an automation-ready (homed) state.
             char buffer[1024] = {0};
-            std::string message{"Elooo"};
-            send(sock, message.c_str(), message.length(), 0);
-            read(sock,buffer, 1024);
-            std::cout<<buffer<<"\nHere\n";
+            std::string message{"home"};
+            send(sock, message.c_str(), message.length(), 0); //Send home message
+            read(sock,buffer, 1024); //Recieve processID into buffer
+        
+            std::stringstream ss(buffer); //Make sure processID is an int
+            if (ss>>processID) {
+                std::cout<<processID<<"\n";
+                return "";
+            }
+            else std::cout<<"Didn't recognise process ID\n";
+            
         }
 
         std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
