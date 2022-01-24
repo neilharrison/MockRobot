@@ -22,12 +22,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 print(msg)
                 msgList = msg.split('%')
                 if msgList[0]=="home":
-                    outmsg = str(random.randint(0,1000))
+                    outmsg = str(random.randint(1,1000))
                 elif msgList[0]=="status":
                     processID = int(msgList[1])
                     outmsg = statusList[random.randint(0,2)]
                 elif msgList[0]=="pick" or msgList[0] == "place":
-                    outmsg = str(random.randint(0,1000))
+                    outmsg = str(random.randint(1,1000))
                 else:
                     outmsg = "-1"
                 
