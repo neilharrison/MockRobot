@@ -25,7 +25,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     outmsg = str(random.randint(1,1000))
                 elif msgList[0]=="status":
                     processID = int(msgList[1])
-                    outmsg = statusList[random.randint(0,2)]
+                    outmsg = statusList[random.randint(0,1)]
+                    print(outmsg)
                 elif msgList[0]=="pick" or msgList[0] == "place":
                     outmsg = str(random.randint(1,1000))
                 else:

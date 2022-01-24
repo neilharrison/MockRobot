@@ -38,73 +38,82 @@ class DeviceDriver{
         std::string OpenConnection(std::string IPAddress) {
         //Device Driver to establish a connection with the MockRobot onboard software
             struct sockaddr_in server;
-            
-            if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-            {
-                std::cout<<"Socket creation error \n";
-                return "Socket creation error \n";
-            }
-            server.sin_family = AF_INET;
-            server.sin_port = htons(PORT);
+            if (!m_connected){
+                if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+                {
+                    std::cout<<"Socket creation error \n";
+                    return "Socket creation error \n";
+                }
+                server.sin_family = AF_INET;
+                server.sin_port = htons(PORT);
 
-            // Convert IPv4 and IPv6 addresses from text to binary form
-            if(inet_pton(AF_INET, (const char *)IPAddress.c_str(), &server.sin_addr)<=0) 
-            {
-                std::cout<<"Invalid address/ Address not supported \n";
-                return "Invalid address/ Address not supported \n";
-            }
+                // Convert IPv4 and IPv6 addresses from text to binary form
+                if(inet_pton(AF_INET, (const char *)IPAddress.c_str(), &server.sin_addr)<=0) 
+                {
+                    std::cout<<"Invalid address/ Address not supported \n";
+                    return "Invalid address/ Address not supported \n";
+                }
 
-            if (connect(sock, (const sockaddr *)&server, sizeof(server)) < 0)
-            {
-                std::cout<<"Connection Failed \n";
-                return "Connection Failed \n";
-            }
-            else {
-                std::cout<<"Connection Succesful\n";
-                m_connected = true;
-                update = std::thread{&DeviceDriver::doUpdate, this};
-                return "";
+                if (connect(sock, (const sockaddr *)&server, sizeof(server)) < 0)
+                {
+                    std::cout<<"Connection Failed \n";
+                    return "Connection Failed \n";
+                }
+                else {
+                    std::cout<<"Connection Succesful\n";
+                    m_connected = true;
+                    update = std::thread{&DeviceDriver::doUpdate, this};
+                    return "";
+                }
             }
         }
 
+
         std::string Initialize() {
         //Device Driver will put the MockRobot into an automation-ready (homed) state.
-            if (!m_initialised) {
-                std::string message{"home"};
-                std::lock_guard<std::mutex> guard(m);
-                m_operationList.push(message);
-                std::cout<<m_operationList.front()<<"\n";
-                m_initialised = true; //maybe check when process is finished?
-            }
-            
-            
+            if (m_connected){
+                if (!m_initialised) {
+                    std::string message{"home"};
+                    std::lock_guard<std::mutex> guard(m);
+                    m_operationList.push(message);
+                    m_initialised = true; //maybe check when process is finished?
+                    return "";
+                }
+                else return "Already initialised!";
+            }    
+            else return "Not connected yet!";
         }
 
         std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
         // Device Driver will perform an operation determined by the parameter operation
-            std::string message;
-            std::string source,destination;
+            if (m_initialised){
+                std::string message;
+                std::string source,destination;
 
-            for (int i = 0;i!=parameterNames.size();++i) {
-                if (parameterNames[i] == "Source Location") source = parameterValues[i];
-                else if (parameterNames[i] == "Destination Location")  destination = parameterValues[i];
-            }
+                for (int i = 0;i!=parameterNames.size();++i) {
+                    if (parameterNames[i] == "Source Location") source = parameterValues[i];
+                    else if (parameterNames[i] == "Destination Location")  destination = parameterValues[i];
+                }
 
-            std::lock_guard<std::mutex> guard(m);
-            if (operation=="Transfer"){
-                message = "pick%" + source;
+                std::lock_guard<std::mutex> guard(m);
+                if (operation=="Transfer"){
+                    message = "pick%" + source;
+                    m_operationList.push(message);
+                    message = "place%" + destination;
+                }
+                else if (operation == "Pick"){
+                    message = "pick%" + source;
+                }
+                else if (operation == "Place"){
+                    message = "place%" + destination;
+                }
+                else {
+                    return "Operation not recognised: " + operation;
+                }
                 m_operationList.push(message);
-                message = "place%" + destination;
+                return "";
             }
-            else if (operation == "Pick"){
-                message = "pick%" + source;
-            }
-            else if (operation == "Place"){
-                message = "place%" + destination;
-            }
-            m_operationList.push(message);
-            
-            return "";
+            else return  "Not yet initialised!";
         }
 
         std::string Abort() {
@@ -113,34 +122,30 @@ class DeviceDriver{
             close(sock);
             m_connected = false;
             m_initialised = false;
-            update.join();
             return "";
         }
-
+    private:
         void doUpdate(){
             while (m_connected) {
                 
                 char buffer[1024] = {0};
-                int status = getStatus(m_processID);
+                int status = getStatus();
                 while (status == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                    status = getStatus(m_processID);
+                    status = getStatus();
                 }
                 if (status == 1) {
-                    std::cout<<"Process ID finished: "<<m_processID<<"\n";
-                    std::string returnMsg = "Process ID finished: " + std::to_string(m_processID);
-
                     std::lock_guard<std::mutex> guard(m);
-                    
-                    send(sock,m_operationList.front().c_str(),m_operationList.front().length(),0);
-                    std::cout<<"sending: "<<m_operationList.front()<<"\n";
-                    read(sock,buffer, 1024);
-                    
-                    std::stringstream ss(buffer);
-                    ss>>m_processID;
-                    std::cout<<"Reading: "<<m_processID<<"\n";
-                    
-                    m_operationList.pop();
+                    if (!m_operationList.empty()){
+                        send(sock,m_operationList.front().c_str(),m_operationList.front().length(),0);
+                        std::cout<<"sending: "<<m_operationList.front()<<"\n";
+                        read(sock,buffer, 1024);
+                        
+                        std::stringstream ss(buffer);
+                        ss>>m_processID;
+                        std::cout<<"Reading: "<<m_processID<<"\n";
+                        m_operationList.pop();
+                    }
             
                     // return returnMsg; 
 
@@ -152,20 +157,23 @@ class DeviceDriver{
             }
         }
 
-    private:
-        int getStatus(int processID) {
-            if (processID != 0) {
+    
+        int getStatus() {
+            if (m_processID != 0) {
                 char buffer[1024] = {0};
                 std::string message{"status%"};
-                message = message + std::to_string(processID);
+                message = message + std::to_string(m_processID);
                 send(sock,message.c_str(),message.length(),0);
                 read(sock,buffer,1024);
                 
                 std::string result(buffer);
+                std::cout<<result<<"\n";
                 if (result == "In Progress") {
                     return 0;
                 }
                 else if (result == "Finished Successfully"){
+                    std::cout<<"Process ID finished: "<<m_processID<<"\n";
+                    m_processID = 0;
                     return 1;
                 }
                 else if (result == "Terminated With Error"){
@@ -180,9 +188,8 @@ class DeviceDriver{
     public:
         ~DeviceDriver(){
             m_connected = false;
-            update.join();
+            if (update.joinable()) update.join(); //if never connected then thread won't have been started
         }
-
 
 };
 
@@ -191,9 +198,15 @@ int main() {
     std::string ip{"127.0.0.1"};
     DeviceDriver driver;
     driver.OpenConnection(ip);
-    driver.Initialize();
-    driver.ExecuteOperation("Transfer", {"Destination Location", "Source Location"}, {"5", "12"});
-    driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"});
-    while (true) {}; // Not the best way to keep driver alive
-    // driver.Abort();
+    std::cout<<driver.Initialize()<<"\n";
+    std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
+    std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
+
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20000));
+    std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"3", "5"})<<"\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+
+    driver.Abort();// while (true) {}; // Not the best way to keep driver alive
+    // 
 }
