@@ -152,6 +152,7 @@ class DeviceDriver{
                 }
                 else if (status<0) {
                     std::cout<<"Process ID failed: "<<m_processID<<"\n"; 
+                    Abort();
                     // return "Process ID failed: " + std::to_string(m_processID);
                 }
             }
@@ -173,7 +174,7 @@ class DeviceDriver{
                 }
                 else if (result == "Finished Successfully"){
                     std::cout<<"Process ID finished: "<<m_processID<<"\n";
-                    m_processID = 0;
+                    m_processID = 0; // 
                     return 1;
                 }
                 else if (result == "Terminated With Error"){
@@ -185,6 +186,7 @@ class DeviceDriver{
             }
             else return 1; //process id = 0, not started yet - move onto first in op list (assumes mockRobot doesnt return processIds of 0)
         }
+
     public:
         ~DeviceDriver(){
             m_connected = false;
@@ -202,8 +204,7 @@ int main() {
     std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
     std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
 
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(20000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(70000));
     std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"3", "5"})<<"\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
