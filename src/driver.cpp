@@ -1,7 +1,5 @@
 
 #include <vector>
-#include <map>
-#include <algorithm>
 
 #include <queue>
 #include <mutex>
@@ -20,14 +18,17 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+
 //Target host details:
 #define PORT 10320
+
+bool isNum(std::string);
 
 class DeviceDriver{
     private:
         int sock{0}; //Socket descriptor
         int m_processID{0}; //Current processID 
-        std::queue<std::string> m_operationList;
+        std::queue<std::string> m_operationQ; //Queue of operations left to do
         bool m_connected{false};
         bool m_initialised{false};
         std::thread update;
@@ -75,7 +76,7 @@ class DeviceDriver{
                 if (!m_initialised) {
                     std::string message{"home"};
                     std::lock_guard<std::mutex> guard(m);
-                    m_operationList.push(message);
+                    m_operationQ.push(message);
                     m_initialised = true; //maybe check when process is finished?
                     return "";
                 }
@@ -86,31 +87,44 @@ class DeviceDriver{
 
         std::string ExecuteOperation(std::string operation, std::vector<std::string> parameterNames, std::vector<std::string> parameterValues) {
         // Device Driver will perform an operation determined by the parameter operation
+        // Check all input is valid before pushing it to operation queue
             if (m_initialised){
-                std::string message;
-                std::string source,destination;
-
-                for (int i = 0;i!=parameterNames.size();++i) {
-                    if (parameterNames[i] == "Source Location") source = parameterValues[i];
-                    else if (parameterNames[i] == "Destination Location")  destination = parameterValues[i];
+                std::string message, source, destination;
+                //Check parameter names and values are valid
+                if (parameterNames.size() == parameterValues.size()){
+                    for (int i = 0;i!=parameterNames.size();++i) {
+                        if (parameterNames[i] == "Source Location" && isNum(parameterValues[i]))
+                            source = parameterValues[i];
+                        else if (parameterNames[i] == "Destination Location" && isNum(parameterValues[i]))
+                            destination = parameterValues[i];
+                        else return "Parameter name/value not recognised: " + parameterNames[i];
+                    }
                 }
+                else return "Mismatch in number of parameter names and values";
 
+                //Will be writing to operation list so wait for lock
                 std::lock_guard<std::mutex> guard(m);
+                //Check operations are valid and make sure correct parameters are used
                 if (operation=="Transfer"){
+                    if (source != "" && destination != ""){
                     message = "pick%" + source;
-                    m_operationList.push(message);
+                    m_operationQ.push(message);
                     message = "place%" + destination;
+                    }
+                    else return "Missing source or destination parameter";
                 }
                 else if (operation == "Pick"){
-                    message = "pick%" + source;
+                    if (source != "") message = "pick%" + source;
+                    else return "Missing source parameter";
                 }
                 else if (operation == "Place"){
-                    message = "place%" + destination;
+                    if (destination != "") message = "place%" + destination;
+                    else return "Missing destination parameter";
                 }
                 else {
                     return "Operation not recognised: " + operation;
                 }
-                m_operationList.push(message);
+                m_operationQ.push(message);
                 return "";
             }
             else return  "Not yet initialised!";
@@ -118,40 +132,44 @@ class DeviceDriver{
 
         std::string Abort() {
             std::lock_guard<std::mutex> guard(m);
-            while (!m_operationList.empty())m_operationList.pop(); //remove everything from queue
+            while (!m_operationQ.empty())m_operationQ.pop(); //remove everything from queue
             close(sock);
             m_connected = false;
             m_initialised = false;
             return "";
         }
+
     private:
         void doUpdate(){
+            //Running all the time once connected - in separate thread
+            //Handles the sending and recieving of operations/process IDs
+            //Waits until current process is done, sends the next operation, recieves its process ID then removes it from the queue
             while (m_connected) {
                 
                 char buffer[1024] = {0};
                 int status = getStatus();
                 while (status == 0) {
+                    //Sleep time should be increased as robot responds on the minute scale - don't spam status
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     status = getStatus();
                 }
                 if (status == 1) {
                     std::lock_guard<std::mutex> guard(m);
-                    if (!m_operationList.empty()){
-                        send(sock,m_operationList.front().c_str(),m_operationList.front().length(),0);
-                        std::cout<<"sending: "<<m_operationList.front()<<"\n";
+                    if (!m_operationQ.empty()){
+                        send(sock,m_operationQ.front().c_str(),m_operationQ.front().length(),0);
+                        std::cout<<"sending: "<<m_operationQ.front()<<"\n";
                         read(sock,buffer, 1024);
                         
                         std::stringstream ss(buffer);
                         ss>>m_processID;
                         std::cout<<"Reading: "<<m_processID<<"\n";
-                        m_operationList.pop();
+                        m_operationQ.pop();
                     }
-            
-                    // return returnMsg; 
 
                 }
                 else if (status<0) {
-                    std::cout<<"Process ID failed: "<<m_processID<<"\n"; 
+                    //If process failed, Abort is called - this might not be the intended behaviour depending on robot
+                    std::cout<<"Process ID failed: "<<m_processID<<"\n";
                     Abort();
                     // return "Process ID failed: " + std::to_string(m_processID);
                 }
@@ -160,6 +178,10 @@ class DeviceDriver{
 
     
         int getStatus() {
+            //Only called by update thread
+            //Sends status message for current process ID, returns an int based on response
+            //When a process is finished - process ID is reset to 0 
+            // ^ this prevents additional status calls if no more operations in list
             if (m_processID != 0) {
                 char buffer[1024] = {0};
                 std::string message{"status%"};
@@ -189,23 +211,33 @@ class DeviceDriver{
 
     public:
         ~DeviceDriver(){
+            //When class is destroyed - make sure update loop is finished and join thread
             m_connected = false;
             if (update.joinable()) update.join(); //if never connected then thread won't have been started
         }
 
 };
 
+bool isNum(std::string test){
+    std::stringstream ss(test);
+    float fl;
+    if (ss>>fl && ss.eof()) return true;
+    else return false;
+}
+
 
 int main() {
     std::string ip{"127.0.0.1"};
+
     DeviceDriver driver;
     driver.OpenConnection(ip);
     std::cout<<driver.Initialize()<<"\n";
-    std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
-    std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
+    // std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
+    // std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
+    std::cout<<driver.ExecuteOperation("Pick", {"Source Location","Destination Location"}, {"12k", "5"})<<"\n";
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(70000));
-    std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"3", "5"})<<"\n";
+    
+    // std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"3", "5"})<<"\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
     driver.Abort();// while (true) {}; // Not the best way to keep driver alive

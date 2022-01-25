@@ -1,6 +1,7 @@
 import socket
 import threading
 import random
+import time
 # Threaded server help from:
 # https://stackoverflow.com/questions/23828264/how-to-make-a-simple-multithreaded-socket-server-in-python-that-remembers-client
 
@@ -19,6 +20,7 @@ class ThreadedServer(object):
             client, address = self.sock.accept()
             client.settimeout(60) # Shouldnt cause an issue as update should keep alive
             threading.Thread(target = self.listenToClient,args = (client,address)).start()
+            time.sleep(1)
 
     def listenToClient(self, client, address):
         size = 1024
@@ -44,6 +46,7 @@ class ThreadedServer(object):
                 # if not data:
                 #     break
                     client.sendall(outmsg.encode("utf-8"))
+                time.sleep(1)
                 
             except:
                 client.close()
