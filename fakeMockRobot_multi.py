@@ -19,6 +19,7 @@ class ThreadedServer(object):
         while True:
             client, address = self.sock.accept()
             client.settimeout(60) # Shouldnt cause an issue as update should keep alive
+            print("Connected to: ",address)
             threading.Thread(target = self.listenToClient,args = (client,address)).start()
             time.sleep(1)
 
@@ -54,5 +55,5 @@ class ThreadedServer(object):
 
 if __name__ == "__main__":
     host = '127.0.0.1'
-    port = 10320
+    port = 10330
     ThreadedServer(host,port).listen()

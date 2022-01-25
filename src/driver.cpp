@@ -20,7 +20,7 @@
 #include <unistd.h>
 
 //Target host details:
-#define PORT 10320
+#define PORT 10330
 
 bool isNum(std::string);
 
@@ -144,11 +144,12 @@ class DeviceDriver{
             { //scope to kill the lock before closing the update thread
                 std::lock_guard<std::mutex> guard(m);
                 // remove everything from queue
-                while (!m_operationQ.empty())m_operationQ.pop(); 
+                while (!m_operationQ.empty())m_operationQ.pop();
+               
             }
             close(sock);
             m_connected = false;
-            m_initialised = false;
+            m_initialised = false; 
             std::cout<<"Abort called"<<"\n";
             //Don't kill update thread if calling abort from itself
             if (update.get_id() != std::this_thread::get_id())
@@ -171,21 +172,29 @@ class DeviceDriver{
                     status = getStatus();
                 }
                 if (status == 1) {
-                    std::lock_guard<std::mutex> guard(m);
+                    std::unique_lock<std::mutex> guard(m);
                     if (!m_operationQ.empty()){
                         send(sock,m_operationQ.front().c_str(),m_operationQ.front().length(),0);
                         std::cout<<"Sending message: "<<m_operationQ.front()<<"\n";
                         read(sock,buffer, 1024);
-                        
-                        std::stringstream ss(buffer);
-                        ss>>m_processID;
-                        std::cout<<"Reading: "<<m_processID<<"\n";
+                        if (strlen(buffer)!=0){
+                            std::stringstream ss(buffer);
+                            ss>>m_processID;
+                            std::cout<<"Reading: "<<m_processID<<"\n";
+                        }
+                        else {
+                            std::cout<<"No response from MockRobot, Aborting... \n" ;
+                            // Need to unlock guard here as abort waits for guard
+                            guard.unlock();
+                            Abort();
+                            break;
+                        }
                         m_operationQ.pop();
                     }
 
                 }
                 else if (status<0) {
-                    // If process failed, Abort is called - this might not be the intended behaviour depending on robot
+                    // If any process failed, Abort is called - this might not be the intended behaviour depending on robot
                     Abort();
                 }
             }
