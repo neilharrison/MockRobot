@@ -42,7 +42,7 @@ class DeviceDriver{
             if (!m_connected){
                 if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
                 {
-                    std::cout<<"Socket creation error \n";
+                    // std::cout<<"Socket creation error \n";
                     return "Socket creation error \n";
                 }
                 server.sin_family = AF_INET;
@@ -51,13 +51,13 @@ class DeviceDriver{
                 // Convert IPv4 and IPv6 addresses from text to binary form
                 if(inet_pton(AF_INET, (const char *)IPAddress.c_str(), &server.sin_addr)<=0) 
                 {
-                    std::cout<<"Invalid address/ Address not supported \n";
+                    // std::cout<<"Invalid address/ Address not supported \n";
                     return "Invalid address/ Address not supported \n";
                 }
 
                 if (connect(sock, (const sockaddr *)&server, sizeof(server)) < 0)
                 {
-                    std::cout<<"Connection Failed \n";
+                    // std::cout<<"Connection Failed \n";
                     return "Connection Failed \n";
                 }
                 else {
@@ -174,7 +174,7 @@ class DeviceDriver{
                     std::lock_guard<std::mutex> guard(m);
                     if (!m_operationQ.empty()){
                         send(sock,m_operationQ.front().c_str(),m_operationQ.front().length(),0);
-                        std::cout<<"sending: "<<m_operationQ.front()<<"\n";
+                        std::cout<<"Sending message: "<<m_operationQ.front()<<"\n";
                         read(sock,buffer, 1024);
                         
                         std::stringstream ss(buffer);
@@ -187,7 +187,6 @@ class DeviceDriver{
                 else if (status<0) {
                     // If process failed, Abort is called - this might not be the intended behaviour depending on robot
                     Abort();
-                    // return "Process ID failed: " + std::to_string(m_processID);
                 }
             }
         }
@@ -206,8 +205,8 @@ class DeviceDriver{
                 read(sock,buffer,1024);
                 
                 std::string result(buffer);
-                std::cout<<result<<"\n";
                 if (result == "In Progress") {
+                    std::cout<<"Process ID in progress: "<<m_processID<<"\n";
                     return 0;
                 }
                 else if (result == "Finished Successfully"){
@@ -256,17 +255,31 @@ int main() {
     
     std::string input;
     while (std::cin>>input) {
+    
         if (input == "open") std::cout<<driver.OpenConnection(ip)<<"\n";
         else if (input == "init") std::cout<<driver.Initialize()<<"\n";
-        else if (input == "transfer") std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
-        else if (input == "pick") std::cout<<driver.ExecuteOperation("Pick", {"Source Location"}, {"12"})<<"\n";
-        else if (input == "place") std::cout<<driver.ExecuteOperation("Place", {"Destination Location"}, {"5"})<<"\n";
+        else if (input == "transfer"){
+            std::string source,dest;
+            std::cin>>source>>dest;
+            std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {source, dest})<<"\n";
+        } 
+        else if (input == "pick") {
+            std::string source;
+            std::cin>>source;
+            std::cout<<driver.ExecuteOperation("Pick", {"Source Location"}, {source})<<"\n";
+            }
+
+        else if (input == "place") {
+            std::string dest;
+            std::cin>>dest;
+            std::cout<<driver.ExecuteOperation("Place", {"Destination Location"}, {dest})<<"\n";
+            }
         else if (input == "abort") std::cout<<driver.Abort()<<"\n";
     }
     std::cout<<driver.Abort()<<"\n";
     // std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"3", "5"})<<"\n";
     // std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
-    // driver.Abort();// while (true) {}; // Not the best way to keep driver alive
+    // driver.Abort();
     // 
 }
