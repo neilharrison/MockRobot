@@ -4,11 +4,13 @@ int main() {
     std::string ip{"127.0.0.1"};
 
     DeviceDriver driver;
-    // driver.OpenConnection(ip);
+    // std::cout<<driver.OpenConnection(ip)<<"\n";
     // std::cout<<driver.Initialize()<<"\n";
-    // std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
     // std::cout<<driver.ExecuteOperation("Transfer", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
-    // std::cout<<driver.ExecuteOperation("Pick", {"Source Location","Destination Location"}, {"12", "5"})<<"\n";
+    // std::cout<<driver.ExecuteOperation("Transfer", {"Destination Location","Source Location"}, {"5", "12"})<<"\n";
+    // std::cout<<driver.ExecuteOperation("Transdfer", {"Destination Location", "Source Location"}, {"5", "12"})<<"\n";
+    // std::cout<<driver.ExecuteOperation("Pick", {"Destination Location"}, {"5"})<<"\n";
+    
     
     std::string input;
     while (std::cin>>input) {

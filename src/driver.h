@@ -29,7 +29,6 @@ class DeviceDriver{
         std::thread update;
         std::mutex m;
 
-
     public:
         std::string OpenConnection(std::string IPAddress) {
         // Device Driver to establish a connection with the MockRobot onboard software
@@ -158,7 +157,6 @@ class DeviceDriver{
             // Handles the sending and recieving of operations/process IDs
             // Waits until current process is done, sends the next operation, recieves its process ID then removes it from the queue
             while (m_connected) {
-                
                 char buffer[1024] = {0};
                 int status = getStatus();
                 while (status == 0) {
@@ -188,7 +186,6 @@ class DeviceDriver{
                         }
                         m_operationQ.pop();
                     }
-
                 }
                 else if (status<0) {
                     // If any process failed, Abort is called - this might not be the intended behaviour depending on robot
